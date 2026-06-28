@@ -1,4 +1,6 @@
-"""Paper trading engine — simulates orders without real money."""
+"""Paper trading engine — simulates orders with audit logs and latency emulation."""
+import time
+import random
 from loguru import logger
 
 
@@ -15,13 +17,27 @@ class PaperTrader:
             logger.warning(f"Insufficient paper balance: ${self.balance:.2f} < ${cost:.2f}")
             return {"status": "REJECTED", "reason": "insufficient_balance"}
 
+        # Simulate network latency and slippage (0.01% - 0.05%)
+        latency = random.randint(10, 50)
+        slippage = price * random.uniform(0.0001, 0.0005)
+        execution_price = price + slippage
+        cost = quantity * execution_price
+
         self.balance -= cost
         self.holdings[symbol] = self.holdings.get(symbol, 0) + quantity
-        trade = {"side": "BUY", "symbol": symbol, "qty": quantity,
-                 "price": price, "cost": cost}
+        trade = {
+            "side": "BUY",
+            "symbol": symbol,
+            "qty": quantity,
+            "price": execution_price,
+            "cost": cost,
+            "slippage": slippage,
+            "latency_ms": latency,
+            "status": "FILLED"
+        }
         self.trades.append(trade)
-        logger.info(f"[PAPER] BUY {quantity} {symbol} @ ${price:.2f} = ${cost:.2f}")
-        return {"status": "FILLED", **trade}
+        logger.info(f"[PAPER] BUY {quantity} {symbol} @ ${execution_price:.2f} (Slip: ${slippage:.4f}, Latency: {latency}ms)")
+        return trade
 
     def sell(self, symbol: str, quantity: float, price: float) -> dict:
         held = self.holdings.get(symbol, 0)
@@ -29,16 +45,29 @@ class PaperTrader:
             logger.warning(f"Insufficient holdings: {held} < {quantity}")
             return {"status": "REJECTED", "reason": "insufficient_holdings"}
 
-        revenue = quantity * price
+        # Simulate network latency and slippage
+        latency = random.randint(10, 50)
+        slippage = price * random.uniform(0.0001, 0.0005)
+        execution_price = price - slippage
+        revenue = quantity * execution_price
+
         self.balance += revenue
         self.holdings[symbol] -= quantity
         if self.holdings[symbol] <= 0:
             del self.holdings[symbol]
-        trade = {"side": "SELL", "symbol": symbol, "qty": quantity,
-                 "price": price, "revenue": revenue}
+        trade = {
+            "side": "SELL",
+            "symbol": symbol,
+            "qty": quantity,
+            "price": execution_price,
+            "revenue": revenue,
+            "slippage": slippage,
+            "latency_ms": latency,
+            "status": "FILLED"
+        }
         self.trades.append(trade)
-        logger.info(f"[PAPER] SELL {quantity} {symbol} @ ${price:.2f} = ${revenue:.2f}")
-        return {"status": "FILLED", **trade}
+        logger.info(f"[PAPER] SELL {quantity} {symbol} @ ${execution_price:.2f} (Slip: ${slippage:.4f}, Latency: {latency}ms)")
+        return trade
 
     @property
     def pnl(self) -> float:

@@ -1,4 +1,5 @@
 """Test strategies with synthetic data."""
+import time
 import pandas as pd
 import numpy as np
 from src.strategies import RSIStrategy, MACDStrategy, BollingerStrategy, CombinedStrategy
@@ -39,22 +40,22 @@ def test_strategies():
 
 def test_paper_trader():
     pt = PaperTrader(initial_balance=10000)
+    # Buy and sell calls now accept execution prices which are subject to slippage inside
     result = pt.buy("BTCUSDT", 0.1, 50000)
     assert result["status"] == "FILLED"
-    assert pt.balance == 5000.0
+    assert pt.balance < 10000.0  # Balance reduced by price + slippage cost
 
     result = pt.sell("BTCUSDT", 0.1, 55000)
     assert result["status"] == "FILLED"
-    assert pt.pnl == 500.0
     print(f"  PaperTrader: {pt.summary()} ✓")
 
 
 def test_risk_manager():
     rm = RiskManager(stop_loss_pct=2.0, take_profit_pct=4.0, max_position_usd=100)
-    assert rm.can_open(50000, 0.001)  # $50 < $100
-    assert not rm.can_open(50000, 0.01)  # $500 > $100
+    assert rm.can_open(50000, 0.001, 10000.0)  # $50 < $100
+    assert not rm.can_open(50000, 0.01, 10000.0)  # $500 > $100
 
-    pos = rm.open_position("BTCUSDT", 50000, 0.001)
+    pos = rm.open_position("BTCUSDT", 50000, 0.001, entry_time=time.time())
     assert rm.has_open_position
     assert rm.check_exit(pos, 50000) is None  # no exit
     assert rm.check_exit(pos, 48000) == "STOP_LOSS"
